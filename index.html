@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>建安國小足球隊｜近期賽程</title>
-<style>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>"><style>
   :root {
     --bg: #f3f5f8;
     --card: #ffffff;
@@ -101,6 +101,10 @@
     border-radius: 10px; font-weight: 700; font-size: 15px;
   }
   .fb-live:hover { background: #0f63d1; }
+  .fb-live.locked {
+    background: #e9edf3; color: var(--muted); cursor: not-allowed; font-weight: 600;
+  }
+  .fb-live.locked .dot { background: #b7c0cc; animation: none; }
   .fb-live .dot {
     width: 9px; height: 9px; border-radius: 50%; background: #ff4d4d;
     box-shadow: 0 0 0 0 rgba(255,77,77,.7);
@@ -223,8 +227,8 @@
       <div class="cd-box"><div class="cd-num" id="cd-m">0</div><div class="cd-unit">分</div></div>
       <div class="cd-box"><div class="cd-num" id="cd-s">0</div><div class="cd-unit">秒</div></div>
     </div>
-    <a class="fb-live" href="https://www.facebook.com/groups/611575027521750" target="_blank" rel="noopener">
-      <span class="dot"></span>Facebook 直播・看比賽
+    <a class="fb-live locked" id="fb-live" target="_blank" rel="noopener" aria-disabled="true">
+      <span class="dot"></span><span id="fb-text">Facebook 直播</span>
     </a>
   </section>
 
@@ -266,6 +270,10 @@
     { ev: "tes",  start: "2026-11-14T12:40", end: "2026-11-14T13:00", ko: "冠軍賽", sub: "FINAL", pitch: "Pitch 2", stage: "冠軍賽" },
     { ev: "tes",  start: "2026-11-14T13:00", end: "2026-11-14T13:20", ko: "頒獎典禮", sub: "PRESENTATIONS", pitch: "", stage: "頒獎" },
     { ev: "daan", start: "2026-11-21T13:00", end: "2026-11-21T13:50", home: US, away: "大安國小", pitch: "", stage: "U10" },
+    { ev: "daan", start: "2026-12-05T09:00", end: "2026-12-05T09:50", ko: "準決賽 #61", sub: "52場勝 vs 53場勝・場次 52 獲勝晉級", pitch: "A 場地", stage: "準決賽" },
+    { ev: "daan", start: "2026-12-05T09:00", end: "2026-12-05T09:50", ko: "準決賽 #69", sub: "57場勝 vs 58場勝・場次 57 獲勝晉級", pitch: "B 場地", stage: "準決賽" },
+    { ev: "daan", start: "2026-12-05T12:40", end: "2026-12-05T13:30", ko: "季軍賽 #65", sub: "61場敗 vs 69場敗・爭奪第 3 名", pitch: "A 場地", stage: "季軍賽" },
+    { ev: "daan", start: "2026-12-05T12:40", end: "2026-12-05T13:30", ko: "冠軍賽 #73", sub: "61場勝 vs 69場勝・爭奪冠軍", pitch: "B 場地", stage: "冠軍賽" },
   ];
 
   const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
@@ -373,7 +381,7 @@
     const now = Date.now();
     const list = document.getElementById("list");
     const shown = MATCHES.filter(m => filter === "all" || m.ev === filter);
-    const next = MATCHES.find(m => !m.ko && toDate(m.end) > now);
+    const next = findNext(now);
 
     // 依日期分組
     const groups = {};
@@ -412,17 +420,45 @@
                   </div>
                   ${body}
                 </div>
-                ${m.ko ? "" : `<button class="cal" data-i="${idx}">＋行事曆</button>`}
+                ${m.stage === "頒獎" ? "" : `<button class="cal" data-i="${idx}">＋行事曆</button>`}
               </div>`;
           }).join("")}
         </section>`;
     }).join("");
   }
 
+  // 下一場：還沒結束的比賽（頒獎不算）
+  const findNext = now => MATCHES.find(m => m.stage !== "頒獎" && toDate(m.end) > now);
+  const label = m => m.ko ? `${m.ko}（${m.sub}）` : `${m.away} vs ${m.home}`;
+
+  // 直播按鈕：比賽開始前 LIVE_EARLY_MIN 分鐘到比賽結束才開放
+  const LIVE_EARLY_MIN = 15;
+  const LIVE_URL = "https://www.facebook.com/groups/611575027521750";
+  function updateLive(now) {
+    const btn = document.getElementById("fb-live");
+    const txt = document.getElementById("fb-text");
+    const on = MATCHES.some(m =>
+      toDate(m.start) - LIVE_EARLY_MIN * 60e3 <= now && now < toDate(m.end));
+    btn.classList.toggle("locked", !on);
+    if (on) {
+      btn.href = LIVE_URL;
+      btn.removeAttribute("aria-disabled");
+      txt.textContent = "Facebook 直播中・點我看比賽";
+      return;
+    }
+    btn.removeAttribute("href");
+    btn.setAttribute("aria-disabled", "true");
+    const next = findNext(now);
+    if (!next) { txt.textContent = "本季直播已結束"; return; }
+    const open = new Date(toDate(next.start) - LIVE_EARLY_MIN * 60e3);
+    txt.textContent = `直播 ${fmtDay(next.start)} ${fmtTime(open)} 開放`;
+  }
+
   // 倒數計時
   function tick() {
     const now = Date.now();
-    const next = MATCHES.find(m => !m.ko && toDate(m.end) > now);
+    const next = findNext(now);
+    updateLive(now);
     const t = document.getElementById("next-title");
     if (!next) {
       t.textContent = "本季賽程已全部結束，謝謝大家的加油！";
@@ -430,7 +466,7 @@
       return;
     }
     const s = toDate(next.start);
-    t.textContent = `${fmtDay(next.start)} ${fmtTime(s)}　${next.away} vs ${next.home}`;
+    t.textContent = `${fmtDay(next.start)} ${fmtTime(s)}　${label(next)}`;
     let diff = Math.max(0, s - now) / 1000;
     if (diff === 0) { t.textContent += "（比賽進行中）"; }
     const d = Math.floor(diff / 86400); diff -= d * 86400;
