@@ -174,6 +174,8 @@
   .pill { font-size: 11px; padding: 0 7px; border-radius: 6px; background: #eef3fa; color: var(--brand); font-weight: 600; }
   .pill.stage { background: #fff4d6; color: #8a6400; }
   .pill.live { background: var(--live); color: #fff; }
+  .pill.path { background: var(--brand); color: #fff; }
+  .match.ko.on-path { border: 1.5px dashed var(--brand); background: #f4f8fe; }
   .vs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 16px; }
   .vs .t { font-weight: 600; }
   .vs .t.us { color: var(--brand); font-weight: 800; }
@@ -269,9 +271,9 @@
     { ev: "tes",  start: "2026-11-14T12:40", end: "2026-11-14T13:00", ko: "季軍賽", sub: "3rd / 4th Place", pitch: "Pitch 1", stage: "季軍賽" },
     { ev: "tes",  start: "2026-11-14T12:40", end: "2026-11-14T13:00", ko: "冠軍賽", sub: "FINAL", pitch: "Pitch 2", stage: "冠軍賽" },
     { ev: "tes",  start: "2026-11-14T13:00", end: "2026-11-14T13:20", ko: "頒獎典禮", sub: "PRESENTATIONS", pitch: "", stage: "頒獎" },
-    { ev: "daan", start: "2026-11-21T13:00", end: "2026-11-21T13:50", home: US, away: "大安國小", pitch: "", stage: "U10" },
+    { ev: "daan", start: "2026-11-21T13:00", end: "2026-11-21T13:50", home: US, away: "大安國小", pitch: "", stage: "八強賽 #57", note: "勝隊晉級 12/5 準決賽 #69" },
     { ev: "daan", start: "2026-12-05T09:00", end: "2026-12-05T09:50", ko: "準決賽 #61", sub: "52場勝 vs 53場勝・場次 52 獲勝晉級", pitch: "A 場地", stage: "準決賽" },
-    { ev: "daan", start: "2026-12-05T09:00", end: "2026-12-05T09:50", ko: "準決賽 #69", sub: "57場勝 vs 58場勝・場次 57 獲勝晉級", pitch: "B 場地", stage: "準決賽" },
+    { ev: "daan", start: "2026-12-05T09:00", end: "2026-12-05T09:50", ko: "準決賽 #69", sub: "57場勝 vs 58場勝・場次 57 獲勝晉級", pitch: "B 場地", stage: "準決賽", path: true },
     { ev: "daan", start: "2026-12-05T12:40", end: "2026-12-05T13:30", ko: "季軍賽 #65", sub: "61場敗 vs 69場敗・爭奪第 3 名", pitch: "A 場地", stage: "季軍賽" },
     { ev: "daan", start: "2026-12-05T12:40", end: "2026-12-05T13:30", ko: "冠軍賽 #73", sub: "61場勝 vs 69場勝・爭奪冠軍", pitch: "B 場地", stage: "冠軍賽" },
   ];
@@ -401,12 +403,12 @@
           ${ms.map(m => {
             const s = toDate(m.start), e = toDate(m.end);
             const done = e < now, live = s <= now && now < e;
-            const cls = ["match", m.ko ? "ko" : "", done ? "done" : "", m === next ? "is-next" : ""].join(" ");
+            const cls = ["match", m.ko ? "ko" : "", done ? "done" : "", m === next ? "is-next" : "", m.path ? "on-path" : ""].join(" ");
             const idx = MATCHES.indexOf(m);
             const body = m.ko
               ? `<div class="vs"><span class="t">${m.ko}</span></div><div class="sub">${m.sub}</div>`
               : `<div class="vs">${teamHtml(m.away, m.awayEn)}<span class="x">vs</span>${teamHtml(m.home, m.homeEn)}</div>
-                 <div class="sub">${m.home === US ? "主隊" : "客隊"}${m.pitch ? "・" + m.pitch : ""}</div>`;
+                 <div class="sub">${m.home === US ? "主隊" : "客隊"}${m.pitch ? "・" + m.pitch : ""}${m.note ? "・" + m.note : ""}</div>`;
             return `
               <div class="${cls}">
                 <div class="time"><b>${fmtTime(s)}</b><span>${m.ev === "daan" ? "至 " + fmtTime(e) : ""}</span></div>
@@ -415,6 +417,7 @@
                     <span class="pill stage">${m.stage}</span>
                     ${m.ko && m.pitch ? `<span class="pill">${m.pitch}</span>` : ""}
                     ${done ? "" : wxMatchHtml(m)}
+                    ${m.path ? `<span class="pill path">建安晉級路線</span>` : ""}
                     ${live ? `<span class="pill live">進行中</span>` : ""}
                     ${done ? `<span class="pill">已結束</span>` : ""}
                   </div>
