@@ -118,6 +118,11 @@
 
   /* 篩選列 */
   .filters { display: flex; gap: 8px; margin: 22px 0 6px; overflow-x: auto; }
+  #ages { margin-bottom: 0; }
+  #ages:empty { display: none; }
+  #ages + #filters { margin-top: 10px; }
+  .filters button.age.on { background: var(--accent); border-color: var(--accent); color: #3a2a00; font-weight: 700; }
+  .pill.age { background: #1c2330; color: #fff; }
   .filters button {
     border: 1px solid var(--line); background: var(--card); color: var(--ink);
     padding: 6px 14px; border-radius: 999px; font-size: 14px; cursor: pointer;
@@ -211,7 +216,7 @@
     <div>
       <h1>建安國小足球隊</h1>
       <div class="tags">
-        <span class="tag">U10</span>
+        <span class="tag" id="age-tag"></span>
         <span class="tag">台北・大安</span>
         <span class="tag">2026 秋季</span>
       </div>
@@ -234,11 +239,8 @@
     </a>
   </section>
 
-  <nav class="filters" id="filters">
-    <button data-f="all" class="on">全部</button>
-    <button data-f="tes">TES CUP U10</button>
-    <button data-f="daan">2026 秋季大安盃</button>
-  </nav>
+  <nav class="filters" id="ages"></nav>
+  <nav class="filters" id="filters"></nav>
 
   <div id="list"></div>
 
@@ -257,9 +259,10 @@
 
   // 賽程資料：要新增比賽就加在這裡
   // start / end 用台北時間 "YYYY-MM-DDTHH:MM"
+  // 年齡組別：賽事的 age 是預設值；同賽事不同組別時，在該場比賽加 age: "U12" 覆蓋
   const EVENTS = {
-    tes:  { name: "TES CUP U10",    venue: "台北歐洲學校 小學部", addr: "台北市北投區文林北路 727 號", lat: 25.1008, lon: 121.5196 },
-    daan: { name: "2026 秋季大安盃", venue: "華中露營場",         addr: "台北市萬華區華中河濱公園",   lat: 25.0141, lon: 121.4970 },
+    tes:  { name: "TES CUP",        age: "U10", venue: "台北歐洲學校 小學部", addr: "台北市北投區文林北路 727 號", lat: 25.1008, lon: 121.5196 },
+    daan: { name: "2026 秋季大安盃", age: "U10", venue: "華中露營場",         addr: "台北市萬華區華中河濱公園",   lat: 25.0141, lon: 121.4970 },
   };
 
   const MATCHES = [
@@ -291,16 +294,35 @@
     const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
     return `${m}/${d}（${WEEK[wd]}）`;
   }
+  const ageOf = m => m.age || EVENTS[m.ev].age;
+  const AGES = [...new Set(MATCHES.map(ageOf))].sort((a, b) => parseInt(b.slice(1)) - parseInt(a.slice(1)));
+
   function title(m) {
-    if (m.ko) return `${EVENTS[m.ev].name}｜${m.ko}`;
-    return `${EVENTS[m.ev].name}｜${m.away} vs ${m.home}`;
+    if (m.ko) return `${ageOf(m)} ${EVENTS[m.ev].name}｜${m.ko}`;
+    return `${ageOf(m)} ${EVENTS[m.ev].name}｜${m.away} vs ${m.home}`;
   }
   function teamHtml(name, en) {
     const cls = name === US ? "t us" : "t";
     return `<span class="${cls}">${name}${en ? ` <small style="color:#9aa3b0">${en}</small>` : ""}</span>`;
   }
 
-  let filter = "all";
+  let filter = "all";   // 賽事
+  let ageFilter = "all"; // 年齡組別
+  const visible = m => (filter === "all" || m.ev === filter) && (ageFilter === "all" || ageOf(m) === ageFilter);
+
+  function renderFilters() {
+    document.getElementById("age-tag").textContent = AGES.join("・");
+    // 只有一個組別時不顯示年齡篩選
+    document.getElementById("ages").innerHTML = AGES.length < 2 ? "" :
+      [["all", "全部組別"], ...AGES.map(a => [a, a])].map(([k, t]) =>
+        `<button class="age${k === ageFilter ? " on" : ""}" data-a="${k}">${t}</button>`).join("");
+    // 賽事按鈕只列目前組別有的賽事
+    const evs = Object.keys(EVENTS).filter(k => MATCHES.some(m => m.ev === k && (ageFilter === "all" || ageOf(m) === ageFilter)));
+    if (filter !== "all" && !evs.includes(filter)) filter = "all";
+    document.getElementById("filters").innerHTML =
+      [["all", "全部賽事"], ...evs.map(k => [k, EVENTS[k].name])].map(([k, t]) =>
+        `<button class="${k === filter ? "on" : ""}" data-f="${k}">${t}</button>`).join("");
+  }
 
   // 天氣預報（Open-Meteo，免金鑰，最多預報 16 天）
   // 每個賽事依場地座標各抓一份
@@ -382,14 +404,15 @@
   function render() {
     const now = Date.now();
     const list = document.getElementById("list");
-    const shown = MATCHES.filter(m => filter === "all" || m.ev === filter);
+    const shown = MATCHES.filter(visible);
     const next = findNext(now);
 
     // 依日期分組
     const groups = {};
-    shown.forEach(m => (groups[m.start.slice(0, 10)] ??= []).push(m));
+    shown.forEach(m => (groups[m.start.slice(0, 10) + "|" + m.ev] ??= []).push(m));
 
-    list.innerHTML = Object.entries(groups).map(([day, ms]) => {
+    list.innerHTML = Object.entries(groups).map(([key, ms]) => {
+      const day = key.slice(0, 10);
       const ev = EVENTS[ms[0].ev];
       const map = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(ev.venue + " " + ev.addr);
       return `
@@ -414,6 +437,7 @@
                 <div class="time"><b>${fmtTime(s)}</b><span>${m.ev === "daan" ? "至 " + fmtTime(e) : ""}</span></div>
                 <div>
                   <div class="meta">
+                    <span class="pill age">${ageOf(m)}</span>
                     <span class="pill stage">${m.stage}</span>
                     ${m.ko && m.pitch ? `<span class="pill">${m.pitch}</span>` : ""}
                     ${done ? "" : wxMatchHtml(m)}
@@ -431,7 +455,7 @@
   }
 
   // 下一場：還沒結束的比賽（頒獎不算）
-  const findNext = now => MATCHES.find(m => m.stage !== "頒獎" && toDate(m.end) > now);
+  const findNext = (now, all) => MATCHES.find(m => m.stage !== "頒獎" && toDate(m.end) > now && (all || visible(m)));
   const label = m => m.ko ? `${m.ko}（${m.sub}）` : `${m.away} vs ${m.home}`;
 
   // 直播按鈕：比賽開始前 LIVE_EARLY_MIN 分鐘到比賽結束才開放
@@ -451,7 +475,7 @@
     }
     btn.removeAttribute("href");
     btn.setAttribute("aria-disabled", "true");
-    const next = findNext(now);
+    const next = findNext(now, true);
     if (!next) { txt.textContent = "本季直播已結束"; return; }
     const open = new Date(toDate(next.start) - LIVE_EARLY_MIN * 60e3);
     txt.textContent = `直播 ${fmtDay(next.start)} ${fmtTime(open)} 開放`;
@@ -469,7 +493,7 @@
       return;
     }
     const s = toDate(next.start);
-    t.textContent = `${fmtDay(next.start)} ${fmtTime(s)}　${label(next)}`;
+    t.textContent = `${fmtDay(next.start)} ${fmtTime(s)}　${ageOf(next)}｜${label(next)}`;
     let diff = Math.max(0, s - now) / 1000;
     if (diff === 0) { t.textContent += "（比賽進行中）"; }
     const d = Math.floor(diff / 86400); diff -= d * 86400;
@@ -516,8 +540,13 @@
     const b = e.target.closest("button");
     if (!b) return;
     filter = b.dataset.f;
-    document.querySelectorAll("#filters button").forEach(x => x.classList.toggle("on", x === b));
-    render();
+    renderFilters(); render(); tick();
+  });
+  document.getElementById("ages").addEventListener("click", e => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    ageFilter = b.dataset.a;
+    renderFilters(); render(); tick();
   });
   document.getElementById("list").addEventListener("click", e => {
     const b = e.target.closest(".cal");
@@ -526,9 +555,10 @@
     download(`建安_${m.start.slice(5, 10)}_${fmtTime(toDate(m.start)).replace(":", "")}.ics`, makeIcs([m]));
   });
   document.getElementById("cal-all").addEventListener("click", () => {
-    download("建安國小_賽程.ics", makeIcs(MATCHES.filter(m => !m.ko)));
+    download("建安國小_賽程.ics", makeIcs(MATCHES.filter(m => !m.ko && visible(m))));
   });
 
+  renderFilters();
   render();
   tick();
   loadWeather();
