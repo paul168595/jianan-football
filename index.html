@@ -171,6 +171,17 @@
     align-items: center;
   }
   .match.done { opacity: .55; }
+  .match.done.scored { opacity: 1; background: #fafbfc; }
+  .score {
+    font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums;
+    background: var(--ink); color: #fff; border-radius: 6px; padding: 0 8px;
+  }
+  .pk { font-size: 11px; color: var(--muted); font-weight: 700; }
+  .pill.res { font-size: 12px; padding: 0 9px; }
+  .pill.win  { background: var(--win); color: #fff; }
+  .pill.lose { background: var(--live); color: #fff; }
+  .pill.draw { background: #8a94a3; color: #fff; }
+  .tag.record { background: var(--accent); color: #3a2a00; font-weight: 700; }
   .match.is-next { border: 2px solid var(--accent); }
   .time { text-align: center; }
   .time b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
@@ -219,6 +230,7 @@
         <span class="tag" id="age-tag"></span>
         <span class="tag">台北・大安</span>
         <span class="tag">2026 秋季</span>
+        <span class="tag record" id="record" hidden></span>
       </div>
     </div>
   </div>
@@ -259,6 +271,8 @@
 
   // 賽程資料：要新增比賽就加在這裡
   // start / end 用台北時間 "YYYY-MM-DDTHH:MM"
+  // 比分：score: [客隊, 主隊]（跟畫面左客右主同順序），PK 大戰另加 pk: [客隊, 主隊]
+  //       淘汰賽確定對手後，在該場加 home / away 就會顯示隊名
   // 年齡組別：賽事的 age 是預設值；同賽事不同組別時，在該場比賽加 age: "U12" 覆蓋
   const EVENTS = {
     tes:  { name: "TES CUP",        age: "U10", venue: "台北歐洲學校 小學部", addr: "台北市北投區文林北路 727 號", lat: 25.1008, lon: 121.5196 },
@@ -297,9 +311,19 @@
   const ageOf = m => m.age || EVENTS[m.ev].age;
   const AGES = [...new Set(MATCHES.map(ageOf))].sort((a, b) => parseInt(b.slice(1)) - parseInt(a.slice(1)));
 
+  const hasTeams = m => m.home && m.away;
+  // 建安的勝負："勝" / "負" / "和"；沒比分或建安沒上場則回傳 null
+  function result(m) {
+    if (!m.score || !hasTeams(m) || (m.home !== US && m.away !== US)) return null;
+    const us = m.away === US ? 0 : 1, them = 1 - us;
+    const [a, b] = m.pk && m.score[0] === m.score[1] ? [m.pk[us], m.pk[them]] : [m.score[us], m.score[them]];
+    return a > b ? "勝" : a < b ? "負" : "和";
+  }
+
   function title(m) {
-    if (m.ko) return `${ageOf(m)} ${EVENTS[m.ev].name}｜${m.ko}`;
-    return `${ageOf(m)} ${EVENTS[m.ev].name}｜${m.away} vs ${m.home}`;
+    const vs = hasTeams(m) ? `${m.away} vs ${m.home}` : m.ko;
+    const sc = m.score ? `（${m.score[0]}:${m.score[1]}${m.pk ? ` PK ${m.pk[0]}:${m.pk[1]}` : ""}）` : "";
+    return `${ageOf(m)} ${EVENTS[m.ev].name}｜${m.ko && hasTeams(m) ? m.ko + " " : ""}${vs}${sc}`;
   }
   function teamHtml(name, en) {
     const cls = name === US ? "t us" : "t";
@@ -312,6 +336,11 @@
 
   function renderFilters() {
     document.getElementById("age-tag").textContent = AGES.join("・");
+    // 戰績（依目前組別）
+    const rs = MATCHES.filter(m => ageFilter === "all" || ageOf(m) === ageFilter).map(result).filter(Boolean);
+    const rec = document.getElementById("record");
+    rec.hidden = !rs.length;
+    rec.textContent = `已賽 ${rs.length} 場：${rs.filter(r => r === "勝").length} 勝 ${rs.filter(r => r === "和").length} 和 ${rs.filter(r => r === "負").length} 負`;
     // 只有一個組別時不顯示年齡篩選
     document.getElementById("ages").innerHTML = AGES.length < 2 ? "" :
       [["all", "全部組別"], ...AGES.map(a => [a, a])].map(([k, t]) =>
@@ -426,12 +455,17 @@
           ${ms.map(m => {
             const s = toDate(m.start), e = toDate(m.end);
             const done = e < now, live = s <= now && now < e;
-            const cls = ["match", m.ko ? "ko" : "", done ? "done" : "", m === next ? "is-next" : "", m.path ? "on-path" : ""].join(" ");
+            const cls = ["match", m.ko && !hasTeams(m) ? "ko" : "", done ? "done" : "", m.score ? "scored" : "", m === next ? "is-next" : "", m.path ? "on-path" : ""].join(" ");
             const idx = MATCHES.indexOf(m);
-            const body = m.ko
+            const res = result(m);
+            const mid = m.score
+              ? `<span class="score">${m.score[0]} : ${m.score[1]}</span>${m.pk ? `<span class="pk">PK ${m.pk[0]} : ${m.pk[1]}</span>` : ""}`
+              : `<span class="x">vs</span>`;
+            const side = m.home === US ? "主隊" : m.away === US ? "客隊" : "";
+            const body = !hasTeams(m)
               ? `<div class="vs"><span class="t">${m.ko}</span></div><div class="sub">${m.sub}</div>`
-              : `<div class="vs">${teamHtml(m.away, m.awayEn)}<span class="x">vs</span>${teamHtml(m.home, m.homeEn)}</div>
-                 <div class="sub">${m.home === US ? "主隊" : "客隊"}${m.pitch ? "・" + m.pitch : ""}${m.note ? "・" + m.note : ""}</div>`;
+              : `<div class="vs">${teamHtml(m.away, m.awayEn)}${mid}${teamHtml(m.home, m.homeEn)}</div>
+                 <div class="sub">${[m.ko, side, m.ko ? "" : m.pitch, m.note].filter(Boolean).join("・")}</div>`;
             return `
               <div class="${cls}">
                 <div class="time"><b>${fmtTime(s)}</b><span>${m.ev === "daan" ? "至 " + fmtTime(e) : ""}</span></div>
@@ -440,10 +474,10 @@
                     <span class="pill age">${ageOf(m)}</span>
                     <span class="pill stage">${m.stage}</span>
                     ${m.ko && m.pitch ? `<span class="pill">${m.pitch}</span>` : ""}
-                    ${done ? "" : wxMatchHtml(m)}
+                    ${done || m.score ? "" : wxMatchHtml(m)}
                     ${m.path ? `<span class="pill path">建安晉級路線</span>` : ""}
                     ${live ? `<span class="pill live">進行中</span>` : ""}
-                    ${done ? `<span class="pill">已結束</span>` : ""}
+                    ${res ? `<span class="pill res ${{勝: "win", 負: "lose", 和: "draw"}[res]}">${res}</span>` : done ? `<span class="pill">已結束</span>` : ""}
                   </div>
                   ${body}
                 </div>
@@ -455,8 +489,8 @@
   }
 
   // 下一場：還沒結束的比賽（頒獎不算）
-  const findNext = (now, all) => MATCHES.find(m => m.stage !== "頒獎" && toDate(m.end) > now && (all || visible(m)));
-  const label = m => m.ko ? `${m.ko}（${m.sub}）` : `${m.away} vs ${m.home}`;
+  const findNext = (now, all) => MATCHES.find(m => m.stage !== "頒獎" && !m.score && toDate(m.end) > now && (all || visible(m)));
+  const label = m => hasTeams(m) ? `${m.ko ? m.ko + " " : ""}${m.away} vs ${m.home}` : `${m.ko}（${m.sub}）`;
 
   // 直播按鈕：比賽開始前 LIVE_EARLY_MIN 分鐘到比賽結束才開放
   const LIVE_EARLY_MIN = 15;
