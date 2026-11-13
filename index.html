@@ -272,6 +272,7 @@
   // 賽程資料：要新增比賽就加在這裡
   // start / end 用台北時間 "YYYY-MM-DDTHH:MM"
   // 比分：score: [客隊, 主隊]（跟畫面左客右主同順序），PK 大戰另加 pk: [客隊, 主隊]
+  //       開賽前不顯示比分；比賽中顯示即時比分；比賽結束後才判定勝負、算進戰績
   //       淘汰賽確定對手後，在該場加 home / away 就會顯示隊名
   // 年齡組別：賽事的 age 是預設值；同賽事不同組別時，在該場比賽加 age: "U12" 覆蓋
   const EVENTS = {
@@ -280,15 +281,15 @@
   };
 
   const MATCHES = [
-    { ev: "tes",  start: "2026-11-14T08:25", end: "2026-11-14T09:05", home: "明德國小", homeEn: "MDES", away: US, pitch: "Pitch 2", stage: "小組賽" },
-    { ev: "tes",  start: "2026-11-14T09:40", end: "2026-11-14T10:20", home: US, away: "忠義國小", awayEn: "ZYES", pitch: "Pitch 2", stage: "小組賽" },
-    { ev: "tes",  start: "2026-11-14T10:55", end: "2026-11-14T11:35", home: "百齡國小", homeEn: "BLES", away: US, pitch: "Pitch 2", stage: "小組賽" },
-    { ev: "tes",  start: "2026-11-14T11:45", end: "2026-11-14T12:10", home: US, away: "歐小", awayEn: "TES", pitch: "Pitch 2", stage: "小組賽" },
+    { ev: "tes",  start: "2026-11-14T08:25", end: "2026-11-14T09:05", home: "明德國小", homeEn: "MDES", away: US, pitch: "Pitch 2", stage: "小組賽", score: [0, 0] },
+    { ev: "tes",  start: "2026-11-14T09:40", end: "2026-11-14T10:20", home: US, away: "忠義國小", awayEn: "ZYES", pitch: "Pitch 2", stage: "小組賽", score: [0, 0] },
+    { ev: "tes",  start: "2026-11-14T10:55", end: "2026-11-14T11:35", home: "百齡國小", homeEn: "BLES", away: US, pitch: "Pitch 2", stage: "小組賽", score: [0, 0] },
+    { ev: "tes",  start: "2026-11-14T11:45", end: "2026-11-14T12:10", home: US, away: "歐小", awayEn: "TES", pitch: "Pitch 2", stage: "小組賽", score: [0, 0] },
     { ev: "tes",  start: "2026-11-14T12:15", end: "2026-11-14T12:35", ko: "四強準決賽", sub: "Semi-Final・依小組名次而定", pitch: "Pitch 1 / Pitch 2", stage: "準決賽" },
     { ev: "tes",  start: "2026-11-14T12:40", end: "2026-11-14T13:00", ko: "季軍賽", sub: "3rd / 4th Place", pitch: "Pitch 1", stage: "季軍賽" },
     { ev: "tes",  start: "2026-11-14T12:40", end: "2026-11-14T13:00", ko: "冠軍賽", sub: "FINAL", pitch: "Pitch 2", stage: "冠軍賽" },
     { ev: "tes",  start: "2026-11-14T13:00", end: "2026-11-14T13:20", ko: "頒獎典禮", sub: "PRESENTATIONS", pitch: "", stage: "頒獎" },
-    { ev: "daan", start: "2026-11-21T13:00", end: "2026-11-21T13:50", home: US, away: "大安國小", pitch: "", stage: "八強賽 #57", note: "勝隊晉級 12/5 準決賽 #69" },
+    { ev: "daan", start: "2026-11-21T13:00", end: "2026-11-21T13:50", home: US, away: "大安國小", pitch: "", stage: "八強賽 #57", note: "勝隊晉級 12/5 準決賽 #69", score: [0, 0] },
     { ev: "daan", start: "2026-12-05T09:00", end: "2026-12-05T09:50", ko: "準決賽 #61", sub: "52場勝 vs 53場勝・場次 52 獲勝晉級", pitch: "A 場地", stage: "準決賽" },
     { ev: "daan", start: "2026-12-05T09:00", end: "2026-12-05T09:50", ko: "準決賽 #69", sub: "57場勝 vs 58場勝・場次 57 獲勝晉級", pitch: "B 場地", stage: "準決賽", path: true },
     { ev: "daan", start: "2026-12-05T12:40", end: "2026-12-05T13:30", ko: "季軍賽 #65", sub: "61場敗 vs 69場敗・爭奪第 3 名", pitch: "A 場地", stage: "季軍賽" },
@@ -313,16 +314,19 @@
 
   const hasTeams = m => m.home && m.away;
   // 建安的勝負："勝" / "負" / "和"；沒比分或建安沒上場則回傳 null
+  const scoreOf = m => toDate(m.start) <= Date.now() ? m.score : null;
   function result(m) {
-    if (!m.score || !hasTeams(m) || (m.home !== US && m.away !== US)) return null;
+    const sc = scoreOf(m);
+    if (!sc || toDate(m.end) > Date.now() || !hasTeams(m) || (m.home !== US && m.away !== US)) return null;
     const us = m.away === US ? 0 : 1, them = 1 - us;
-    const [a, b] = m.pk && m.score[0] === m.score[1] ? [m.pk[us], m.pk[them]] : [m.score[us], m.score[them]];
+    const [a, b] = m.pk && sc[0] === sc[1] ? [m.pk[us], m.pk[them]] : [sc[us], sc[them]];
     return a > b ? "勝" : a < b ? "負" : "和";
   }
 
   function title(m) {
     const vs = hasTeams(m) ? `${m.away} vs ${m.home}` : m.ko;
-    const sc = m.score ? `（${m.score[0]}:${m.score[1]}${m.pk ? ` PK ${m.pk[0]}:${m.pk[1]}` : ""}）` : "";
+    const s0 = scoreOf(m);
+    const sc = s0 ? `（${s0[0]}:${s0[1]}${m.pk ? ` PK ${m.pk[0]}:${m.pk[1]}` : ""}）` : "";
     return `${ageOf(m)} ${EVENTS[m.ev].name}｜${m.ko && hasTeams(m) ? m.ko + " " : ""}${vs}${sc}`;
   }
   function teamHtml(name, en) {
@@ -455,11 +459,12 @@
           ${ms.map(m => {
             const s = toDate(m.start), e = toDate(m.end);
             const done = e < now, live = s <= now && now < e;
-            const cls = ["match", m.ko && !hasTeams(m) ? "ko" : "", done ? "done" : "", m.score ? "scored" : "", m === next ? "is-next" : "", m.path ? "on-path" : ""].join(" ");
+            const cls = ["match", m.ko && !hasTeams(m) ? "ko" : "", done ? "done" : "", scoreOf(m) ? "scored" : "", m === next ? "is-next" : "", m.path ? "on-path" : ""].join(" ");
             const idx = MATCHES.indexOf(m);
             const res = result(m);
-            const mid = m.score
-              ? `<span class="score">${m.score[0]} : ${m.score[1]}</span>${m.pk ? `<span class="pk">PK ${m.pk[0]} : ${m.pk[1]}</span>` : ""}`
+            const sc = scoreOf(m);
+            const mid = sc
+              ? `<span class="score">${sc[0]} : ${sc[1]}</span>${m.pk ? `<span class="pk">PK ${m.pk[0]} : ${m.pk[1]}</span>` : ""}`
               : `<span class="x">vs</span>`;
             const side = m.home === US ? "主隊" : m.away === US ? "客隊" : "";
             const body = !hasTeams(m)
@@ -474,7 +479,7 @@
                     <span class="pill age">${ageOf(m)}</span>
                     <span class="pill stage">${m.stage}</span>
                     ${m.ko && m.pitch ? `<span class="pill">${m.pitch}</span>` : ""}
-                    ${done || m.score ? "" : wxMatchHtml(m)}
+                    ${done || sc ? "" : wxMatchHtml(m)}
                     ${m.path ? `<span class="pill path">建安晉級路線</span>` : ""}
                     ${live ? `<span class="pill live">進行中</span>` : ""}
                     ${res ? `<span class="pill res ${{勝: "win", 負: "lose", 和: "draw"}[res]}">${res}</span>` : done ? `<span class="pill">已結束</span>` : ""}
@@ -489,7 +494,7 @@
   }
 
   // 下一場：還沒結束的比賽（頒獎不算）
-  const findNext = (now, all) => MATCHES.find(m => m.stage !== "頒獎" && !m.score && toDate(m.end) > now && (all || visible(m)));
+  const findNext = (now, all) => MATCHES.find(m => m.stage !== "頒獎" && toDate(m.end) > now && (all || visible(m)));
   const label = m => hasTeams(m) ? `${m.ko ? m.ko + " " : ""}${m.away} vs ${m.home}` : `${m.ko}（${m.sub}）`;
 
   // 直播按鈕：比賽開始前 LIVE_EARLY_MIN 分鐘到比賽結束才開放
