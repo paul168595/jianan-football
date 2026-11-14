@@ -191,6 +191,7 @@
   .pill.stage { background: #fff4d6; color: #8a6400; }
   .pill.live { background: var(--live); color: #fff; }
   .pill.path { background: var(--brand); color: #fff; }
+  .pill.tbd { background: #fde8e6; color: #b3261e; }
   .match.ko.on-path { border: 1.5px dashed var(--brand); background: #f4f8fe; }
   .vs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 16px; }
   .vs .t { font-weight: 600; }
@@ -274,10 +275,12 @@
   // 比分：score: [客隊, 主隊]（跟畫面左客右主同順序），PK 大戰另加 pk: [客隊, 主隊]
   //       開賽前不顯示比分；比賽中顯示即時比分；比賽結束後才判定勝負、算進戰績
   //       淘汰賽確定對手後，在該場加 home / away 就會顯示隊名
+  // 預告：時間未確定的比賽加 tentative: true，會顯示「預告・時間暫定」
   // 年齡組別：賽事的 age 是預設值；同賽事不同組別時，在該場比賽加 age: "U12" 覆蓋
   const EVENTS = {
-    tes:  { name: "TES CUP",        age: "U10", venue: "台北歐洲學校 小學部", addr: "台北市北投區文林北路 727 號", lat: 25.1008, lon: 121.5196 },
+    tes:  { name: "TES CUP",        age: "U10", venue: "台北歐洲學校 小學部", addr: "台北市士林區福國路 99 號", lat: 25.1019, lon: 121.5219 },
     daan: { name: "2026 秋季大安盃", age: "U10", venue: "華中露營場",         addr: "台北市萬華區華中河濱公園",   lat: 25.0141, lon: 121.4970 },
+    tesfr: { name: "中年級友誼賽",  age: "U10", venue: "台北歐洲學校 小學部", addr: "台北市士林區福國路 99 號", lat: 25.1019, lon: 121.5219 },
   };
 
   const MATCHES = [
@@ -294,6 +297,7 @@
     { ev: "daan", start: "2026-12-05T09:00", end: "2026-12-05T09:50", ko: "準決賽 #69", sub: "57場勝 vs 58場勝・場次 57 獲勝晉級", pitch: "B 場地", stage: "準決賽", path: true },
     { ev: "daan", start: "2026-12-05T12:40", end: "2026-12-05T13:30", ko: "季軍賽 #65", sub: "61場敗 vs 69場敗・爭奪第 3 名", pitch: "A 場地", stage: "季軍賽" },
     { ev: "daan", start: "2026-12-05T12:40", end: "2026-12-05T13:30", ko: "冠軍賽 #73", sub: "61場勝 vs 69場勝・爭奪冠軍", pitch: "B 場地", stage: "冠軍賽" },
+    { ev: "tesfr", start: "2027-01-16T09:00", end: "2027-01-16T10:30", home: "歐小", homeEn: "TES", away: US, pitch: "", stage: "友誼賽", note: "8:30 進校・共 4 場，每場 15 分鐘", tentative: true },
   ];
 
   const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
@@ -473,7 +477,7 @@
                  <div class="sub">${[m.ko, side, m.ko ? "" : m.pitch, m.note].filter(Boolean).join("・")}</div>`;
             return `
               <div class="${cls}">
-                <div class="time"><b>${fmtTime(s)}</b><span>${m.ev === "daan" ? "至 " + fmtTime(e) : ""}</span></div>
+                <div class="time"><b>${fmtTime(s)}</b><span>${m.ev !== "tes" ? "至 " + fmtTime(e) : ""}</span></div>
                 <div>
                   <div class="meta">
                     <span class="pill age">${ageOf(m)}</span>
@@ -481,6 +485,7 @@
                     ${m.ko && m.pitch ? `<span class="pill">${m.pitch}</span>` : ""}
                     ${done || sc ? "" : wxMatchHtml(m)}
                     ${m.path ? `<span class="pill path">建安晉級路線</span>` : ""}
+                    ${m.tentative ? `<span class="pill tbd">預告・時間暫定</span>` : ""}
                     ${live ? `<span class="pill live">進行中</span>` : ""}
                     ${res ? `<span class="pill res ${{勝: "win", 負: "lose", 和: "draw"}[res]}">${res}</span>` : done ? `<span class="pill">已結束</span>` : ""}
                   </div>
