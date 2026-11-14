@@ -276,10 +276,12 @@
   //       開賽前不顯示比分；比賽中顯示即時比分；比賽結束後才判定勝負、算進戰績
   //       淘汰賽確定對手後，在該場加 home / away 就會顯示隊名
   // 預告：時間未確定的比賽加 tentative: true，會顯示「預告・時間暫定」
+  //       只知道日期、不知道幾點：加 timeTbd: true，start / end 填當天 00:00 / 23:59，時間顯示「待定」
   // 年齡組別：賽事的 age 是預設值；同賽事不同組別時，在該場比賽加 age: "U12" 覆蓋
   const EVENTS = {
     tes:  { name: "TES CUP",        age: "U10", venue: "台北歐洲學校 小學部", addr: "台北市士林區福國路 99 號", lat: 25.1019, lon: 121.5219 },
     daan: { name: "2026 秋季大安盃", age: "U10", venue: "華中露營場",         addr: "台北市萬華區華中河濱公園",   lat: 25.0141, lon: 121.4970 },
+    hornet: { name: "黃蜂爭霸盃",  age: "U10", venue: "汐止綜合運動場",     addr: "新北市汐止區忠孝東路 9 號", lat: 25.0657, lon: 121.6586 },
     tesfr: { name: "U10 友誼賽",   age: "U10", venue: "台北歐洲學校 小學部", addr: "台北市士林區福國路 99 號", lat: 25.1019, lon: 121.5219 },
   };
 
@@ -297,6 +299,8 @@
     { ev: "daan", start: "2026-12-05T09:00", end: "2026-12-05T09:50", ko: "準決賽 #69", sub: "57場勝 vs 58場勝・場次 57 獲勝晉級", pitch: "B 場地", stage: "準決賽", path: true },
     { ev: "daan", start: "2026-12-05T12:40", end: "2026-12-05T13:30", ko: "季軍賽 #65", sub: "61場敗 vs 69場敗・爭奪第 3 名", pitch: "A 場地", stage: "季軍賽" },
     { ev: "daan", start: "2026-12-05T12:40", end: "2026-12-05T13:30", ko: "冠軍賽 #73", sub: "61場勝 vs 69場勝・爭奪冠軍", pitch: "B 場地", stage: "冠軍賽" },
+    { ev: "hornet", start: "2027-01-09T00:00", end: "2027-01-09T23:59", ko: "第 1 天・賽程待公布", sub: "賽事暫定，時間、對手公布後更新", pitch: "", stage: "", tentative: true, timeTbd: true },
+    { ev: "hornet", start: "2027-01-10T00:00", end: "2027-01-10T23:59", ko: "第 2 天・賽程待公布", sub: "賽事暫定，時間、對手公布後更新", pitch: "", stage: "", tentative: true, timeTbd: true },
     { ev: "tesfr", start: "2027-01-16T09:00", end: "2027-01-16T10:30", home: "歐小", homeEn: "TES", away: US, pitch: "", stage: "友誼賽", note: "8:30 進校・共 4 場，每場 15 分鐘", tentative: true },
   ];
 
@@ -477,13 +481,13 @@
                  <div class="sub">${[m.ko, side, m.ko ? "" : m.pitch, m.note].filter(Boolean).join("・")}</div>`;
             return `
               <div class="${cls}">
-                <div class="time"><b>${fmtTime(s)}</b><span>${m.ev !== "tes" ? "至 " + fmtTime(e) : ""}</span></div>
+                <div class="time"><b>${m.timeTbd ? "待定" : fmtTime(s)}</b><span>${m.ev !== "tes" && !m.timeTbd ? "至 " + fmtTime(e) : ""}</span></div>
                 <div>
                   <div class="meta">
                     <span class="pill age">${ageOf(m)}</span>
-                    <span class="pill stage">${m.stage}</span>
+                    ${m.stage ? `<span class="pill stage">${m.stage}</span>` : ""}
                     ${m.ko && m.pitch ? `<span class="pill">${m.pitch}</span>` : ""}
-                    ${done || sc ? "" : wxMatchHtml(m)}
+                    ${done || sc || m.timeTbd ? "" : wxMatchHtml(m)}
                     ${m.path ? `<span class="pill path">建安晉級路線</span>` : ""}
                     ${m.tentative ? `<span class="pill tbd">預告・時間暫定</span>` : ""}
                     ${live ? `<span class="pill live">進行中</span>` : ""}
@@ -508,7 +512,7 @@
   function updateLive(now) {
     const btn = document.getElementById("fb-live");
     const txt = document.getElementById("fb-text");
-    const on = MATCHES.some(m =>
+    const on = MATCHES.some(m => !m.timeTbd &&
       toDate(m.start) - LIVE_EARLY_MIN * 60e3 <= now && now < toDate(m.end));
     btn.classList.toggle("locked", !on);
     if (on) {
@@ -522,7 +526,7 @@
     const next = findNext(now, true);
     if (!next) { txt.textContent = "本季直播已結束"; return; }
     const open = new Date(toDate(next.start) - LIVE_EARLY_MIN * 60e3);
-    txt.textContent = `直播 ${fmtDay(next.start)} ${fmtTime(open)} 開放`;
+    txt.textContent = next.timeTbd ? `直播 ${fmtDay(next.start)}（時間待公布）` : `直播 ${fmtDay(next.start)} ${fmtTime(open)} 開放`;
   }
 
   // 倒數計時
@@ -537,9 +541,9 @@
       return;
     }
     const s = toDate(next.start);
-    t.textContent = `${fmtDay(next.start)} ${fmtTime(s)}　${ageOf(next)}｜${label(next)}`;
+    t.textContent = `${fmtDay(next.start)} ${next.timeTbd ? "時間待公布" : fmtTime(s)}　${ageOf(next)}｜${label(next)}`;
     let diff = Math.max(0, s - now) / 1000;
-    if (diff === 0) { t.textContent += "（比賽進行中）"; }
+    if (diff === 0 && !next.timeTbd) { t.textContent += "（比賽進行中）"; }
     const d = Math.floor(diff / 86400); diff -= d * 86400;
     const h = Math.floor(diff / 3600);  diff -= h * 3600;
     const mi = Math.floor(diff / 60);
@@ -561,8 +565,9 @@
         "BEGIN:VEVENT",
         `UID:jianan-${m.start}-${i}@jianan`,
         `DTSTAMP:${icsStamp(new Date())}`,
-        `DTSTART:${icsStamp(toDate(m.start))}`,
-        `DTEND:${icsStamp(toDate(m.end))}`,
+        // 時間未定的比賽存成整天行程
+        m.timeTbd ? `DTSTART;VALUE=DATE:${m.start.slice(0, 10).replace(/-/g, "")}` : `DTSTART:${icsStamp(toDate(m.start))}`,
+        m.timeTbd ? `DTEND;VALUE=DATE:${icsStamp(new Date(toDate(m.start).getTime() + 86400e3 + 8 * 3600e3)).slice(0, 8)}` : `DTEND:${icsStamp(toDate(m.end))}`,
         `SUMMARY:${title(m)}`,
         `LOCATION:${EVENTS[m.ev].venue}${m.pitch ? " " + m.pitch : ""}\\, ${EVENTS[m.ev].addr}`,
         "BEGIN:VALARM", "TRIGGER:-PT60M", "ACTION:DISPLAY", `DESCRIPTION:${title(m)}`, "END:VALARM",
@@ -599,7 +604,7 @@
     download(`建安_${m.start.slice(5, 10)}_${fmtTime(toDate(m.start)).replace(":", "")}.ics`, makeIcs([m]));
   });
   document.getElementById("cal-all").addEventListener("click", () => {
-    download("建安國小_賽程.ics", makeIcs(MATCHES.filter(m => !m.ko && visible(m))));
+    download("建安國小_賽程.ics", makeIcs(MATCHES.filter(m => (!m.ko || m.timeTbd) && visible(m))));
   });
 
   renderFilters();
